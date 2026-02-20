@@ -1,66 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Hridoy Mining App</title>
+  <title>Hridoy Mining</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="text-align:center; font-family:sans-serif; background:#0f172a; color:white;">
 
-  <h1>🔥 Hridoy Mining App</h1>
-  <h2 id="balance">Balance: Loading...</h2>
+<body style="text-align:center;font-family:sans-serif;background:#0f172a;color:white;">
 
-  <button onclick="startMining()" style="padding:15px 30px; font-size:18px; background:lime; border:none; border-radius:10px;">
-    Start Mining
-  </button>
+<h1>⛏ Hridoy Mining</h1>
+<h2 id="balance">Loading...</h2>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<button onclick="startMining()" 
+style="padding:15px 30px;font-size:18px;background:lime;border:none;border-radius:10px;">
+Start Mining
+</button>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
-      authDomain: "hridoy-web-c06d2.firebaseapp.com",
-      projectId: "hridoy-web-c06d2",
-      storageBucket: "hridoy-web-c06d2.firebasestorage.app",
-      messagingSenderId: "323558167500",
-      appId: "1:323558167500:web:8bfaf6711b72c846fec369",
-      measurementId: "G-03Q1E724TP"
-    };
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
+  authDomain: "hridoy-web-c06d2.firebaseapp.com",
+  databaseURL: "https://hridoy-web-c06d2-default-rtdb.firebaseio.com",
+  projectId: "hridoy-web-c06d2",
+  storageBucket: "hridoy-web-c06d2.firebasestorage.app",
+  messagingSenderId: "323558167500",
+  appId: "1:323558167500:web:8bfaf6711b72c846fec369"
+};
 
-    let balance = 0;
-    let mining = false;
-    let userRef = database.ref("users/user1");
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const userRef = db.ref("users/user1");
 
-    // Load balance first
-    userRef.once("value").then((snapshot) => {
-      const data = snapshot.val();
-      if (data && data.coins) {
-        balance = data.coins;
-      } else {
-        balance = 0;
-      }
-      document.getElementById("balance").innerText = "Balance: " + balance + " Coins";
-    });
+let mining = false;
+let balance = 0;
 
-    function startMining() {
-      if (mining) return;
-      mining = true;
+// Realtime sync (important)
+userRef.on("value", snapshot => {
+  if(snapshot.exists()){
+    balance = snapshot.val().coins || 0;
+  } else {
+    balance = 0;
+    userRef.set({coins:0});
+  }
+  document.getElementById("balance").innerText = 
+  "Balance: " + balance + " Coins";
+});
 
-      setInterval(() => {
-        balance++;
-        document.getElementById("balance").innerText = "Balance: " + balance + " Coins";
+function startMining(){
+  if(mining) return;
+  mining = true;
 
-        userRef.set({
-          coins: balance
-        });
-
-      }, 1000);
-    }
-  </script>
+  setInterval(()=>{
+    balance++;
+    userRef.update({coins: balance});
+  },1000);
+}
+</script>
 
 </body>
 </html>
