@@ -2,12 +2,79 @@
 <html>
 <head>
   <title>Login</title>
+  <style>
+    body{
+      margin:0;
+      font-family:Arial;
+      background:#111827;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      height:100vh;
+    }
+    .card{
+      background:#1f2937;
+      padding:30px;
+      border-radius:10px;
+      text-align:center;
+      color:white;
+      width:300px;
+    }
+    button{
+      width:100%;
+      padding:10px;
+      margin-top:15px;
+      background:#10b981;
+      border:none;
+      border-radius:5px;
+      color:white;
+      font-weight:bold;
+      cursor:pointer;
+    }
+  </style>
 </head>
 <body>
 
-  <h2>Login Page</h2>
-
+<div class="card">
+  <h2>Login</h2>
   <button id="googleLogin">Login with Google</button>
+  <p id="message"></p>
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup } 
+from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
+      authDomain: "hridoy-web-c06d2.firebaseapp.com",
+      databaseURL: "https://hridoy-web-c06d2-default-rtdb.firebaseio.com",
+      projectId: "hridoy-web-c06d2",
+      storageBucket: "hridoy-web-c06d2.firebasestorage.app",
+      messagingSenderId: "323558167500",
+      appId: "1:323558167500:web:8bfaf6711b72c846fec369"
+    };
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+document.getElementById("googleLogin").addEventListener("click", () => {
+  
+  signInWithPopup(auth, provider)
+    .then((result) => {
+      window.location.href = "dashboard.html";
+    })
+    .catch((error) => {
+      document.getElementById("message").innerText = error.message;
+    });
+
+});
+
+</script>
 
 </body>
 </html>
