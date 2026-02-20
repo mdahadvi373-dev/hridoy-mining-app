@@ -7,7 +7,7 @@
 <body style="text-align:center; font-family:sans-serif; background:#0f172a; color:white;">
 
   <h1>🔥 Hridoy Mining App</h1>
-  <h2 id="balance">Balance: 0 Coins</h2>
+  <h2 id="balance">Balance: Loading...</h2>
 
   <button onclick="startMining()" style="padding:15px 30px; font-size:18px; background:lime; border:none; border-radius:10px;">
     Start Mining
@@ -33,6 +33,18 @@
 
     let balance = 0;
     let mining = false;
+    let userRef = database.ref("users/user1");
+
+    // Load balance first
+    userRef.once("value").then((snapshot) => {
+      const data = snapshot.val();
+      if (data && data.coins) {
+        balance = data.coins;
+      } else {
+        balance = 0;
+      }
+      document.getElementById("balance").innerText = "Balance: " + balance + " Coins";
+    });
 
     function startMining() {
       if (mining) return;
@@ -42,20 +54,12 @@
         balance++;
         document.getElementById("balance").innerText = "Balance: " + balance + " Coins";
 
-        database.ref("users/user1").set({
+        userRef.set({
           coins: balance
         });
 
       }, 1000);
     }
-
-    database.ref("users/user1").on("value", (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        balance = data.coins;
-        document.getElementById("balance").innerText = "Balance: " + balance + " Coins";
-      }
-    });
   </script>
 
 </body>
