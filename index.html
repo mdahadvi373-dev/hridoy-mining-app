@@ -5,59 +5,80 @@
 </head>
 <body>
 
-<h2>Balance: <span id="balance">Loading...</span></h2>
-<button onclick="mine()">Mine Coin</button>
+  <h2 id="balance">Balance: Loading...</h2>
+  <button id="mineBtn">Mine Coin</button>
 
-<script type="module">
+  <script type="module">
+    // Firebase Import
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { 
+      getDatabase, 
+      ref, 
+      onValue, 
+      runTransaction 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { 
+      getAuth, 
+      signInAnonymously, 
+      onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    // Your Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
+      authDomain: "hridoy-web-c06d2.firebaseapp.com",
+      databaseURL: "https://hridoy-web-c06d2-default-rtdb.firebaseio.com",
+      projectId: "hridoy-web-c06d2",
+      storageBucket: "hridoy-web-c06d2.firebasestorage.app",
+      messagingSenderId: "323558167500",
+      appId: "1:323558167500:web:8bfaf6711b72c846fec369"
+    };
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
-  authDomain: "hridoy-web-c06d2.firebaseapp.com",
-  databaseURL: "https://hridoy-web-c06d2-default-rtdb.firebaseio.com",
-  projectId: "hridoy-web-c06d2",
-  storageBucket: "hridoy-web-c06d2.firebasestorage.app",
-  messagingSenderId: "323558167500",
-  appId: "1:323558167500:web:8bfaf6711b72c846fec369"
-};
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const auth = getAuth(app);
+    const balanceEl = document.getElementById("balance");
+    const mineBtn = document.getElementById("mineBtn");
 
-let userId;
-let coins = 0;
+    // Anonymous Login
+    signInAnonymously(auth)
+      .catch((error) => {
+        console.error("Login Error:", error);
+      });
 
-signInAnonymously(auth);
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(db, "users/" + user.uid);
 
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    userId = user.uid;
-    const userRef = ref(db, "users/" + userId);
+        // Listen balance
+        onValue(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            balanceEl.innerText = "Balance: " + (data.coins || 0);
+          } else {
+            balanceEl.innerText = "Balance: 0";
+          }
+        });
 
-    const snapshot = await get(userRef);
-    if (!snapshot.exists()) {
-      set(userRef, { coins: 0 });
-    }
+        // Mine Button
+        mineBtn.addEventListener("click", () => {
+          runTransaction(userRef, (currentData) => {
+            if (currentData) {
+              return {
+                coins: (currentData.coins || 0) + 1
+              };
+            } else {
+              return { coins: 1 };
+            }
+          });
+        });
 
-    onValue(userRef, (snap) => {
-      coins = snap.val().coins;
-      document.getElementById("balance").innerText = coins;
+      }
     });
-  }
-});
 
-window.mine = function () {
-  coins++;
-  set(ref(db, "users/" + userId), {
-    coins: coins
-  });
-};
-
-</script>
+  </script>
 
 </body>
 </html>
