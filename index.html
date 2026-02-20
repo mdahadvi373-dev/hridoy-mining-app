@@ -1,101 +1,62 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hridoy Mining Network</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    body{
-      margin:0;
-      background:linear-gradient(180deg,#0f2027,#203a43,#2c5364);
-      color:#fff;
-      font-family:Arial, sans-serif;
-      text-align:center;
-    }
-    h2{margin-top:20px;}
-    .card{
-      background:#1e2a38;
-      margin:20px;
-      padding:20px;
-      border-radius:20px;
-      box-shadow:0 0 20px rgba(0,0,0,0.4);
-    }
-    .circle{
-      width:200px;
-      height:200px;
-      margin:20px auto;
-      border-radius:50%;
-      background:radial-gradient(circle,#00c6ff,#0072ff);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:20px;
-      animation:spin 6s linear infinite;
-    }
-    @keyframes spin{
-      from{transform:rotate(0deg);}
-      to{transform:rotate(360deg);}
-    }
-    button{
-      width:140px;
-      padding:12px;
-      margin:8px;
-      border:none;
-      border-radius:10px;
-      font-size:15px;
-      color:white;
-      cursor:pointer;
-    }
-    .claim{background:#00c853;}
-    .boost{background:#ff6f00;}
-    .invite{background:#2962ff;}
-  </style>
+  <title>Hridoy Mining App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body>
+<body style="text-align:center; font-family:sans-serif; background:#0f172a; color:white;">
 
-<h2>💎 Hridoy Mining Network</h2>
+  <h1>🔥 Hridoy Mining App</h1>
+  <h2 id="balance">Balance: 0 Coins</h2>
 
-<div class="card">
-  <div class="circle">⛏ Mining</div>
-  <h1 id="balance">0.0000 USDT</h1>
-  <p>⚡ Hashrate: <span id="hash">150</span> GH/s</p>
-  <p>🔋 Energy: <span id="energy">100</span>%</p>
+  <button onclick="startMining()" style="padding:15px 30px; font-size:18px; background:lime; border:none; border-radius:10px;">
+    Start Mining
+  </button>
 
-  <button class="claim" onclick="claim()">Claim</button>
-  <button class="boost" onclick="booster()">Booster</button>
-  <button class="invite" onclick="invite()">Invite</button>
-</div>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
-<script>
-let balance = 0;
-let hashrate = 150;
-let energy = 100;
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
+      authDomain: "hridoy-web-c06d2.firebaseapp.com",
+      projectId: "hridoy-web-c06d2",
+      storageBucket: "hridoy-web-c06d2.firebasestorage.app",
+      messagingSenderId: "323558167500",
+      appId: "1:323558167500:web:8bfaf6711b72c846fec369",
+      measurementId: "G-03Q1E724TP"
+    };
 
-setInterval(()=>{
-  if(energy > 0){
-    balance += 0.005;
-    energy -= 0.2;
-  }
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-  document.getElementById("balance").innerText = balance.toFixed(4)+" USDT";
-  document.getElementById("hash").innerText = hashrate;
-  document.getElementById("energy").innerText = energy.toFixed(0);
-},1000);
+    let balance = 0;
+    let mining = false;
 
-function claim(){
-  alert("Claim successful!");
-}
+    function startMining() {
+      if (mining) return;
+      mining = true;
 
-function booster(){
-  hashrate += 50;
-  alert("Booster Activated!");
-}
+      setInterval(() => {
+        balance++;
+        document.getElementById("balance").innerText = "Balance: " + balance + " Coins";
 
-function invite(){
-  alert("Invite your friends and earn bonus!");
-}
-</script>
+        database.ref("users/user1").set({
+          coins: balance
+        });
+
+      }, 1000);
+    }
+
+    database.ref("users/user1").on("value", (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        balance = data.coins;
+        document.getElementById("balance").innerText = "Balance: " + balance + " Coins";
+      }
+    });
+  </script>
 
 </body>
 </html>
