@@ -2,62 +2,49 @@
 <html>
 <head>
   <title>Hridoy Mining</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
+<body>
 
-<body style="text-align:center;font-family:sans-serif;background:#0f172a;color:white;">
+<h2>Balance: <span id="coin">Loading...</span></h2>
+<button onclick="mine()">Mine Coin</button>
 
-<h1>⛏ Hridoy Mining</h1>
-<h2 id="balance">Loading...</h2>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-<button onclick="startMining()" 
-style="padding:15px 30px;font-size:18px;background:lime;border:none;border-radius:10px;">
-Start Mining
-</button>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
+    authDomain: "hridoy-web-c06d2.firebaseapp.com",
+    databaseURL: "https://hridoy-web-c06d2-default-rtdb.firebaseio.com",
+    projectId: "hridoy-web-c06d2",
+    storageBucket: "hridoy-web-c06d2.firebasestorage.app",
+    messagingSenderId: "323558167500",
+    appId: "1:323558167500:web:8bfaf6711b72c846fec369"
+  };
 
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
 
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
-  authDomain: "hridoy-web-c06d2.firebaseapp.com",
-  databaseURL: "https://hridoy-web-c06d2-default-rtdb.firebaseio.com",
-  projectId: "hridoy-web-c06d2",
-  storageBucket: "hridoy-web-c06d2.firebasestorage.app",
-  messagingSenderId: "323558167500",
-  appId: "1:323558167500:web:8bfaf6711b72c846fec369"
-};
+  let userId;
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const userRef = db.ref("users/user1");
+  signInAnonymously(auth);
 
-let mining = false;
-let balance = 0;
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      userId = user.uid;
+      loadCoins();
+    }
+  });
 
-// Realtime sync (important)
-userRef.on("value", snapshot => {
-  if(snapshot.exists()){
-    balance = snapshot.val().coins || 0;
-  } else {
-    balance = 0;
-    userRef.set({coins:0});
-  }
-  document.getElementById("balance").innerText = 
-  "Balance: " + balance + " Coins";
-});
-
-function startMining(){
-  if(mining) return;
-  mining = true;
-
-  setInterval(()=>{
-    balance++;
-    userRef.update({coins: balance});
-  },1000);
-}
-</script>
-
-</body>
-</html>
+  function loadCoins() {
+    const coinRef = ref(db, 'users/' + userId);
+    get(coinRef).then((snapshot) => {
+      if (snapshot.exists()) {
+        document.getElementById("coin").innerText = snapshot.val().coins;
+      } else {
+        set(coinRef, { coins: 0 });
+        document.getElementById("coin").innerText = 0;
+      }
+    });
