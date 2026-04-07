@@ -1,84 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Hridoy Mining</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Login</title>
 </head>
 <body>
-
-  <h2 id="balance">Balance: Loading...</h2>
-  <button id="mineBtn">Mine Coin</button>
-
-  <script type="module">
-    // Firebase Import
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { 
-      getDatabase, 
-      ref, 
-      onValue, 
-      runTransaction 
-    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-    import { 
-      getAuth, 
-      signInAnonymously, 
-      onAuthStateChanged 
-    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
-    // Your Firebase Config
-    const firebaseConfig = {
-      apiKey: "AIzaSyDWvXsFqeeSxaWj0ySZXlxGwW0RlUGnVAg",
-      authDomain: "hridoy-web-c06d2.firebaseapp.com",
-      databaseURL: "https://hridoy-web-c06d2-default-rtdb.firebaseio.com",
-      projectId: "hridoy-web-c06d2",
-      storageBucket: "hridoy-web-c06d2.firebasestorage.app",
-      messagingSenderId: "323558167500",
-      appId: "1:323558167500:web:8bfaf6711b72c846fec369"
-    };
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const auth = getAuth(app);
-
-    const balanceEl = document.getElementById("balance");
-    const mineBtn = document.getElementById("mineBtn");
-
-    // Anonymous Login
-    signInAnonymously(auth)
-      .catch((error) => {
-        console.error("Login Error:", error);
-      });
-
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        const userRef = ref(db, "users/" + user.uid);
-
-        // Listen balance
-        onValue(userRef, (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.val();
-            balanceEl.innerText = "Balance: " + (data.coins || 0);
-          } else {
-            balanceEl.innerText = "Balance: 0";
-          }
-        });
-
-        // Mine Button
-        mineBtn.addEventListener("click", () => {
-          runTransaction(userRef, (currentData) => {
-            if (currentData) {
-              return {
-                coins: (currentData.coins || 0) + 1
-              };
-            } else {
-              return { coins: 1 };
-            }
-          });
-        });
-
-      }
-    });
-
-  </script>
-
+    <div class="container">
+        <div class="character">
+            <img src="character.png" alt="Character" class="character-image">
+            <div class="bag"></div>
+        </div>
+        <div class="login-form">
+            <form>
+                <input type="text" placeholder="Username" required>
+                <input type="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
