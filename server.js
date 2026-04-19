@@ -1,37 +1,27 @@
-// ================= REAL EARN - FULL PRODUCTION SERVER.JS =================
-// Sob features included - No more changes needed
+// ================= REAL EARN - SIMPLE SERVER =================
+// Version: 2.1 | No Anti-Fraud | For Render
 
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 const mongoose = require("mongoose");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const jwt = require("jsonwebtoken");
-const fetch = require("node-fetch");
+const crypto = require("crypto");
 require("dotenv").config();
 
 const app = express();
 
 // ====================== CONFIG ======================
-const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-jwt-key-change-this";
+const JWT_SECRET = process.env.JWT_SECRET;
 const USD_TO_AED = parseFloat(process.env.USD_TO_AED) || 3.67;
 const USER_SHARE = parseFloat(process.env.USER_SHARE) || 0.70;
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
+const POSTBACK_SECRET = process.env.POSTBACK_SECRET || "change-this-secret";
+const MAX_TASK_AMOUNT_USD = parseFloat(process.env.MAX_TASK_AMOUNT_USD) || 50;
 
-// ====================== KEEP ALIVE ======================
-let serverStartTime = Date.now();
-async function keepServerAlive() {
-    try {
-        const hostname = process.env.RENDER_EXTERNAL_HOSTNAME || 'localhost';
-        await fetch(`https://${hostname}/health`, { method: 'HEAD' });
-    } catch (e) {}
-}
-setInterval(keepServerAlive, 3 * 60 * 1000);
-
-// ====================== SECURITY ======================
+// ====================== SECURITY SETUP ======================
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT'] }));
 app.use(express.json({ limit: '10kb' }));
@@ -40,48 +30,28 @@ app.use(express.urlencoded({ limit: '10kb', extended: true }));
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300 });
 app.use("/api/", apiLimiter);
 
-// ====================== MIDDLEWARES ======================
-const authenticateToken = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ success: false, error: "Token required" });
-
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) return res.status(403).json({ success: false, error: "Invalid or expired token" });
-        req.userId = decoded.userId;
-        next();
-    });
-};
-
-const isAdmin = (req, res, next) => {
-    if (req.userId !== ADMIN_USER_ID) {
-        return res.status(403).json({ success: false, error: "Admin access only" });
+// ====================== MONGODB ======================
+async function connectDB() {
+    try {
+        await mongoose.connect(process.env.MONGO_URI);
+        console.log("✅ MongoDB Connected");
+    } catch (err) {
+        console.error("❌ MongoDB Error:", err.message);
+        setTimeout(connectDB, 5000);
     }
-    next();
-};
-
-// ====================== MONGO ======================
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log("✅ MongoDB Connected Successfully"))
-    .catch(err => console.error("❌ MongoDB Error:", err.message));
-
-mongoose.connection.on('disconnected', () => {
-    mongoose.connect(process.env.MONGO_URI);
-});
+}
+connectDB();
 
 // ====================== SCHEMAS ======================
 const UserSchema = new mongoose.Schema({
-    userId: { type: String, required: true, unique: true, index: true },
+    userId: { type: String, required: true, unique: true },
     email: String,
-    name: String,
+    name: { type: String, default: 'User' },
     photoURL: String,
-    balance: { type: Number, default: 0, min: 0 },
-    totalEarned: { type: Number, default: 0, min: 0 },
-    deviceId: { type: String, required: true, index: true },
-    deviceFingerprint: String,
-    lastIP: String,
-    suspiciousActivityCount: { type: Number, default: 0 },
-    isBlocked: { type: Boolean, default: false },
-    loginCount: { type: Number, default: 0 }
+    balance: { type: Number, default: 0 },
+    totalEarned: { type: Number, default: 0 },
+    totalWithdrawn: { type: Number, default: 0 },
+    taskCompletedCount: { type: Number, default: 0 }
 }, { timestamps: true });
 
 const TransactionSchema = new mongoose.Schema({
@@ -90,71 +60,56 @@ const TransactionSchema = new mongoose.Schema({
     amount: Number,
     taskId: String,
     site: String,
-    status: { type: String, enum: ['success', 'pending', 'failed'] },
+    network: String,
+    status: { type: String, default: 'success' },
     details: String,
-    ip: String
+    method: String,
+    account: String,
+    processedAt: Date
 }, { timestamps: true });
 
 const TaskCompletionSchema = new mongoose.Schema({
     userId: String,
     taskId: String,
     site: String,
-    completedAt: { type: Date, default: Date.now }
-});
+    network: String,
+    amountUSD: Number,
+    amountAED: Number
+}, { timestamps: true });
 
 const User = mongoose.model("User", UserSchema);
 const Transaction = mongoose.model("Transaction", TransactionSchema);
 const TaskCompletion = mongoose.model("TaskCompletion", TaskCompletionSchema);
 
-// ====================== HELPERS ======================
-function generateDeviceFingerprint(req) {
-    const crypto = require('crypto');
-    const data = `\( {req.headers['user-agent'] || ''}| \){req.ip || ''}|${req.headers['accept-language'] || ''}`;
-    return crypto.createHash('sha256').update(data).digest('hex');
-}
+// ====================== MIDDLEWARES ======================
+const authenticateToken = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ success: false, error: "Token required" });
 
-async function checkDeviceFraud(deviceId, fingerprint, userId) {
-    const existing = await User.findOne({ deviceId });
-    if (existing && existing.userId !== userId) {
-        return { allowed: false, msg: "Device already registered to another account" };
-    }
-    return { allowed: true };
-}
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+        if (err) return res.status(403).json({ success: false, error: "Invalid token" });
+        req.userId = decoded.userId;
+        next();
+    });
+};
 
 // ====================== ROUTES ======================
-app.get("/health", (req, res) => {
-    res.json({ status: "OK", uptime: Math.round((Date.now() - serverStartTime)/1000) });
-});
+app.get("/health", (req, res) => res.json({ status: "OK" }));
 
-app.get("/api/networks", (req, res) => {
-    res.json({ success: true, settings: { usd_to_aed: USD_TO_AED, user_share: USER_SHARE } });
-});
-
-// User Login / Register
+// Register / Login (No Device Check)
 app.post("/api/user", async (req, res) => {
     try {
-        const { userId, email, name, photoURL, deviceId } = req.body;
-        const ip = req.ip || 'unknown';
-        const fingerprint = generateDeviceFingerprint(req);
+        const { userId, email, name, photoURL } = req.body;
 
-        if (!userId || !deviceId) return res.status(400).json({ success: false, error: "userId and deviceId required" });
-
-        const fraud = await checkDeviceFraud(deviceId, fingerprint, userId);
-        if (!fraud.allowed) return res.status(403).json({ success: false, error: fraud.msg });
+        if (!userId) return res.status(400).json({ success: false, error: "userId required" });
 
         let user = await User.findOne({ userId });
 
         if (!user) {
-            user = await User.create({
-                userId, email, name, photoURL,
-                deviceId, deviceFingerprint: fingerprint, lastIP: ip
-            });
+            user = await User.create({ userId, email, name, photoURL });
         } else {
-            if (user.isBlocked) return res.status(403).json({ success: false, error: "Account blocked" });
-            user.deviceId = deviceId;
-            user.deviceFingerprint = fingerprint;
-            user.lastIP = ip;
-            user.loginCount += 1;
+            if (email) user.email = email;
+            if (name) user.name = name;
             await user.save();
         }
 
@@ -166,120 +121,75 @@ app.post("/api/user", async (req, res) => {
             user: {
                 userId: user.userId,
                 name: user.name,
+                email: user.email,
                 balance: user.balance,
-                totalEarned: user.totalEarned
+                totalEarned: user.totalEarned,
+                totalWithdrawn: user.totalWithdrawn,
+                taskCompletedCount: user.taskCompletedCount
             }
         });
     } catch (err) {
-        console.error(err);
         res.status(500).json({ success: false, error: "Server error" });
     }
 });
 
-// Get User Balance (Frontend only display)
-app.get("/api/user/:userId", authenticateToken, async (req, res) => {
-    if (req.params.userId !== req.userId) return res.status(403).json({ success: false, error: "Unauthorized" });
-
-    const user = await User.findOne({ userId: req.userId });
-    if (!user) return res.status(404).json({ success: false, error: "User not found" });
-
-    res.json({ success: true, balance: user.balance, totalEarned: user.totalEarned });
-});
-
-// ✅ SECURE ADD EARNING (Main Point)
-app.post("/api/add-earning", authenticateToken, async (req, res) => {
+// Postback (Simplified)
+app.post("/api/postback/:network", async (req, res) => {
     try {
-        const { taskId, amount, site, type = "task" } = req.body;
-        if (!taskId || !amount || amount <= 0) return res.status(400).json({ success: false, error: "Invalid task or amount" });
+        const network = req.params.network;
+        const userId = req.body.userId || req.body.user_id || req.body.sub_id;
+        const taskId = req.body.taskId || req.body.offer_id || req.body.transaction_id;
+        const amountUSD = parseFloat(req.body.amount || req.body.payout || req.body.reward || 0);
 
-        const user = await User.findOne({ userId: req.userId });
-        if (!user || user.isBlocked) return res.status(403).json({ success: false, error: "User blocked or not found" });
+        if (!userId || !taskId || amountUSD <= 0) {
+            return res.status(400).json({ success: false, error: "Missing fields" });
+        }
 
-        // Duplicate Prevention
-        const alreadyDone = await TaskCompletion.findOne({ userId: req.userId, taskId });
-        if (alreadyDone) return res.status(409).json({ success: false, error: "Task already completed" });
-
-        const userShare = (amount * USD_TO_AED) * USER_SHARE;
+        const amountAED = parseFloat(((amountUSD * USD_TO_AED) * USER_SHARE).toFixed(2));
 
         const updatedUser = await User.findOneAndUpdate(
-            { userId: req.userId },
-            { $inc: { balance: userShare, totalEarned: userShare } },
+            { userId },
+            { $inc: { balance: amountAED, totalEarned: amountAED, taskCompletedCount: 1 } },
             { new: true }
         );
 
-        await Transaction.create({
-            userId: req.userId,
-            type: 'earning',
-            amount: userShare,
-            taskId,
-            site,
-            status: 'success',
-            details: `${type} from ${site}`
-        });
+        if (!updatedUser) return res.status(404).json({ success: false, error: "User not found" });
 
-        await TaskCompletion.create({ userId: req.userId, taskId, site });
+        await TaskCompletion.create({ userId, taskId, site: network, network, amountUSD, amountAED });
+        await Transaction.create({ userId, type: 'earning', amount: amountAED, taskId, site: network, network, status: 'success' });
 
-        res.json({
-            success: true,
-            newBalance: updatedUser.balance.toFixed(2),
-            earned: userShare.toFixed(2)
-        });
+        console.log(`✅ Earning Added: \( {userId} + \){amountAED} AED`);
+        res.json({ success: true, message: "Earning credited" });
+
     } catch (err) {
         console.error(err);
         res.status(500).json({ success: false, error: "Server error" });
     }
 });
 
-// Withdrawal
-app.post("/api/withdraw", authenticateToken, async (req, res) => {
+// Manual Earning (for testing)
+app.post("/api/add-earning", authenticateToken, async (req, res) => {
     try {
-        const { amount, method, account } = req.body;
-        if (!amount || amount < 50) return res.status(400).json({ success: false, error: "Minimum withdrawal 50 AED" });
+        const { taskId, amount, site } = req.body;
+        const amountAED = parseFloat(((amount * USD_TO_AED) * USER_SHARE).toFixed(2));
 
-        const user = await User.findOne({ userId: req.userId });
-        if (user.balance < amount) return res.status(400).json({ success: false, error: "Insufficient balance" });
+        const updatedUser = await User.findOneAndUpdate(
+            { userId: req.userId },
+            { $inc: { balance: amountAED, totalEarned: amountAED, taskCompletedCount: 1 } },
+            { new: true }
+        );
 
-        await User.findOneAndUpdate({ userId: req.userId }, { $inc: { balance: -amount } });
+        await Transaction.create({ userId: req.userId, type: 'earning', amount: amountAED, taskId, site });
 
-        await Transaction.create({
-            userId: req.userId,
-            type: 'withdrawal',
-            amount: -amount,
-            status: 'pending',
-            details: `${method} to ${account}`
-        });
-
-        res.json({ success: true, message: "Withdrawal request submitted successfully" });
+        res.json({ success: true, newBalance: updatedUser.balance });
     } catch (err) {
         res.status(500).json({ success: false, error: "Server error" });
     }
 });
 
-// Admin Routes
-app.get("/api/admin/users", authenticateToken, isAdmin, async (req, res) => {
-    const users = await User.find().lean();
-    res.json({ success: true, users });
-});
-
-app.get("/api/admin/transactions", authenticateToken, isAdmin, async (req, res) => {
-    const txs = await Transaction.find().sort({ createdAt: -1 }).lean();
-    res.json({ success: true, transactions: txs });
-});
-
-// Postback for Survey / Game / Offerwall
-app.post("/api/postback/install", async (req, res) => {
-    console.log("📥 Postback Received:", req.body);
-    // TODO: Verify signature then call add-earning logic internally
-    res.json({ success: true });
-});
-
-// Frontend Static Files
-app.use(express.static(path.join(__dirname, "dist")));
-app.get("*", (req, res) => res.sendFile(path.join(__dirname, "dist", "index.html")));
-
-// Start Server
+// ====================== SERVER ======================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 RealEarn Server Running on Port ${PORT}`);
-    console.log("✅ All features active → Balance fully server controlled");
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on port ${PORT}`);
 });
