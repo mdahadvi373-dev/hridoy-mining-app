@@ -219,13 +219,6 @@ const checkNotBlocked = async (req, res, next) => {
     }
 };
 
-app.get("/", (req, res) => {
-    res.json({
-        status: "OK",
-        message: "Real Earn API is running on Render"
-    });
-});
-
 // ====================== ROUTES ======================
 
 // Health Check
