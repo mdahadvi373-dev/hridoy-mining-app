@@ -221,6 +221,10 @@ const checkNotBlocked = async (req, res, next) => {
 
 // ====================== ROUTES ======================
 
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
+});
+
 // Health Check
 app.get("/health", (req, res) => {
     res.json({
